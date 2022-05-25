@@ -21,6 +21,7 @@ impl Client {
     async fn request(&self, request: Request) -> Result<Response> {
         let (response_tx, response_rx) = oneshot::channel();
         self.request_tx.send((request, response_tx))?;
+        // 响应返回
         response_rx.await?
     }
 

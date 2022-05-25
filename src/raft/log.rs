@@ -75,8 +75,10 @@ impl Log {
 
     /// Appends a command to the log, returning the entry.
     pub fn append(&mut self, term: u64, command: Option<Vec<u8>>) -> Result<Entry> {
+        // 创建一个log entry
         let entry = Entry { index: self.last_index + 1, term, command };
         debug!("Appending log entry {}: {:?}", entry.index, entry);
+        // 序列化后entry
         self.store.append(Self::serialize(&entry)?)?;
         self.last_index = entry.index;
         self.last_term = entry.term;

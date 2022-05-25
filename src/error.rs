@@ -31,6 +31,7 @@ impl Display for Error {
     }
 }
 
+// 类型转换error
 impl From<Box<bincode::ErrorKind>> for Error {
     fn from(err: Box<bincode::ErrorKind>) -> Self {
         Error::Internal(err.to_string())
@@ -109,6 +110,7 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
     }
 }
 
+// 内部错误转换 error
 impl From<tokio::task::JoinError> for Error {
     fn from(err: tokio::task::JoinError) -> Self {
         Error::Internal(err.to_string())

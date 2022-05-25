@@ -23,8 +23,10 @@ impl Follower {
     pub fn new(leader: Option<&str>, voted_for: Option<&str>) -> Self {
         Self {
             leader: leader.map(String::from),
+            // 投票
             voted_for: voted_for.map(String::from),
             leader_seen_ticks: 0,
+            // 获取leader超时时间
             leader_seen_timeout: rand::thread_rng()
                 .gen_range(ELECTION_TIMEOUT_MIN..=ELECTION_TIMEOUT_MAX),
         }

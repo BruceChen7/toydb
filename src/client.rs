@@ -47,7 +47,9 @@ impl Client {
 
     /// Call a server method
     async fn call(&self, request: Request) -> Result<Response> {
+        // 获取connection
         let mut conn = self.conn.lock().await;
+        // 获取server的方法
         self.call_locked(&mut conn, request).await
     }
 
@@ -58,6 +60,7 @@ impl Client {
         request: Request,
     ) -> Result<Response> {
         conn.send(request).await?;
+        // 是否重试
         match conn.try_next().await? {
             Some(result) => result,
             None => Err(Error::Internal("Server disconnected".into())),

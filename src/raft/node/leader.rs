@@ -11,6 +11,7 @@ pub struct Leader {
     /// Number of ticks since last heartbeat.
     heartbeat_ticks: u64,
     /// The next index to replicate to a peer.
+    /// 每个follow节点当前复制的index
     peer_next_index: HashMap<String, u64>,
     /// The last index known to be replicated on a peer.
     peer_last_index: HashMap<String, u64>,
@@ -28,6 +29,7 @@ impl Leader {
             leader.peer_next_index.insert(peer.clone(), last_index + 1);
             leader.peer_last_index.insert(peer.clone(), 0);
         }
+        // 返回leader
         leader
     }
 }
@@ -35,19 +37,24 @@ impl Leader {
 impl RoleNode<Leader> {
     /// Transforms the leader into a follower
     fn become_follower(mut self, term: u64, leader: &str) -> Result<RoleNode<Follower>> {
+        // 打印leader信息
         info!("Discovered new leader {} for term {}, following", leader, term);
         self.term = term;
         self.log.save_term(term, None)?;
         self.state_tx.send(Instruction::Abort)?;
+        // 成为follower
         self.become_role(Follower::new(Some(leader), None))
     }
 
     /// Appends an entry to the log and replicates it to peers.
     pub fn append(&mut self, command: Option<Vec<u8>>) -> Result<u64> {
+        // log append
         let entry = self.log.append(self.term, command)?;
+        // 迭代每个follower 开始复制
         for peer in self.peers.iter() {
             self.replicate(peer)?;
         }
+        // 返回entry的index
         Ok(entry.index)
     }
 
@@ -77,18 +84,23 @@ impl RoleNode<Leader> {
 
     /// Replicates the log to a peer.
     fn replicate(&self, peer: &str) -> Result<()> {
+        // 复制偏移量
         let peer_next = self
             .role
             .peer_next_index
             .get(peer)
             .cloned()
             .ok_or_else(|| Error::Internal(format!("Unknown peer {}", peer)))?;
+        // 上一个index
         let base_index = if peer_next > 0 { peer_next - 1 } else { 0 };
+        // 上一个任期
         let base_term = match self.log.get(base_index)? {
             Some(base) => base.term,
             None if base_index == 0 => 0,
             None => return Err(Error::Internal(format!("Missing base entry {}", base_index))),
         };
+
+        // 多个entries
         let entries = self.log.scan(peer_next..).collect::<Result<Vec<_>>>()?;
         debug!("Replicating {} entries at base {} to {}", entries.len(), base_index, peer);
         self.send(

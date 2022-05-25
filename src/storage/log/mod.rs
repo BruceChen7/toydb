@@ -14,6 +14,7 @@ use std::fmt::Display;
 use std::ops::{Bound, RangeBounds};
 
 /// A log store. Entry indexes are 1-based, to match Raft semantics.
+/// store 实现trait;
 pub trait Store: Display + Sync + Send {
     /// Appends a log entry, returning its index.
     fn append(&mut self, entry: Vec<u8>) -> Result<u64>;

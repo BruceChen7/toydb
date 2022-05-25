@@ -53,6 +53,7 @@ impl RoleNode<Candidate> {
                 commit_term: node.log.commit_term,
             },
         )?;
+        // 每个node的任期一上任就开始一个空的command
         node.append(None)?;
         node.abort_proxied()?;
         Ok(node)

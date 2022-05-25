@@ -26,6 +26,7 @@ pub struct Message {
     /// The recipient address.
     pub to: Address,
     /// The message event.
+    /// 时间本身
     pub event: Event,
 }
 
