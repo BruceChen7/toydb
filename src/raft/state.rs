@@ -26,6 +26,7 @@ pub enum Instruction {
     /// Abort all pending operations, e.g. due to leader change.
     Abort,
     /// Apply a log entry.
+    /// 应用这条log
     Apply { entry: Entry },
     /// Notify the given address with the result of applying the entry at the given index.
     Notify { id: Vec<u8>, address: Address, index: u64 },

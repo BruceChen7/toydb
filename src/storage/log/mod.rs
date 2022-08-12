@@ -85,6 +85,7 @@ pub type Scan<'a> = Box<dyn Iterator<Item = Result<Vec<u8>>> + 'a>;
 use crate::error::Error;
 
 #[cfg(test)]
+// 创建TestSuit
 trait TestSuite<S: Store> {
     fn setup() -> Result<S>;
 

@@ -26,7 +26,7 @@ pub struct Message {
     /// The recipient address.
     pub to: Address,
     /// The message event.
-    /// 时间本身
+    /// 事件本身
     pub event: Event,
 }
 
@@ -94,6 +94,7 @@ pub enum Event {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Request {
     Query(Vec<u8>),
+    // 写请求
     Mutate(Vec<u8>),
     Status,
 }

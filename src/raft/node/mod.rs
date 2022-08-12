@@ -36,6 +36,7 @@ pub struct Status {
 }
 
 /// The local Raft node state machine.
+/// 节点类型
 pub enum Node {
     Candidate(RoleNode<Candidate>),
     Follower(RoleNode<Follower>),
@@ -101,8 +102,10 @@ impl Node {
     pub fn step(self, msg: Message) -> Result<Self> {
         debug!("Stepping {:?}", msg);
         match self {
+            // 不同的节点处理消息不同
             Node::Candidate(n) => n.step(msg),
             Node::Follower(n) => n.step(msg),
+            // 如果是leadr， 按照leader来处理
             Node::Leader(n) => n.step(msg),
         }
     }
@@ -118,6 +121,7 @@ impl Node {
 }
 
 impl From<RoleNode<Candidate>> for Node {
+    // 别人转成自己的内性
     fn from(rn: RoleNode<Candidate>) -> Self {
         Node::Candidate(rn)
     }
@@ -129,6 +133,7 @@ impl From<RoleNode<Follower>> for Node {
     }
 }
 
+// 转换成Node
 impl From<RoleNode<Leader>> for Node {
     fn from(rn: RoleNode<Leader>) -> Self {
         Node::Leader(rn)
@@ -152,7 +157,9 @@ pub struct RoleNode<R> {
 
 impl<R> RoleNode<R> {
     /// Transforms the node into another role.
+    /// 转换成另外一种role
     fn become_role<T>(self, role: T) -> Result<RoleNode<T>> {
+        // 转换成林该一个role
         Ok(RoleNode {
             id: self.id,
             peers: self.peers,
@@ -169,6 +176,7 @@ impl<R> RoleNode<R> {
     /// Aborts any proxied requests.
     fn abort_proxied(&mut self) -> Result<()> {
         for (id, address) in std::mem::take(&mut self.proxied_reqs) {
+            // 发送响应
             self.send(address, Event::ClientResponse { id, response: Err(Error::Abort) })?;
         }
         Ok(())
@@ -200,8 +208,10 @@ impl<R> RoleNode<R> {
 
     /// Sends an event
     fn send(&self, to: Address, event: Event) -> Result<()> {
+        // 构建消息
         let msg = Message { term: self.term, from: Address::Local, to, event };
         debug!("Sending {:?}", msg);
+        // 发送消息
         Ok(self.node_tx.send(msg)?)
     }
 

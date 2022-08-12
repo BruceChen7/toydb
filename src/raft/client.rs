@@ -28,7 +28,9 @@ impl Client {
     /// Mutates the Raft state machine.
     pub async fn mutate(&self, command: Vec<u8>) -> Result<Vec<u8>> {
         match self.request(Request::Mutate(command)).await? {
+            // 返回结果
             Response::State(response) => Ok(response),
+            // 如果是error
             resp => Err(Error::Internal(format!("Unexpected Raft mutate response {:?}", resp))),
         }
     }

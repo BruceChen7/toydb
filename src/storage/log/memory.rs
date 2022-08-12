@@ -118,6 +118,7 @@ impl Store for Memory {
 
 #[cfg(test)]
 impl super::TestSuite<Memory> for Memory {
+    // 用来创建Memory
     fn setup() -> Result<Self> {
         Ok(Memory::new())
     }

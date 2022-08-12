@@ -33,8 +33,10 @@ impl RoleNode<Candidate> {
     fn become_follower(mut self, term: u64, leader: &str) -> Result<RoleNode<Follower>> {
         info!("Discovered leader {} for term {}, following", leader, term);
         self.term = term;
+        // 保存当前的任期
         self.log.save_term(term, None)?;
         let mut node = self.become_role(Follower::new(Some(leader), None))?;
+        // 终止代理
         node.abort_proxied()?;
         node.forward_queued(Address::Peer(leader.to_string()))?;
         Ok(node)
@@ -44,8 +46,10 @@ impl RoleNode<Candidate> {
     fn become_leader(self) -> Result<RoleNode<Leader>> {
         info!("Won election for term {}, becoming leader", self.term);
         let peers = self.peers.clone();
+        // 获取自己的最后一个index
         let last_index = self.log.last_index;
         let mut node = self.become_role(Leader::new(peers, last_index))?;
+        // 发送自己的log心跳日志
         node.send(
             Address::Peers,
             Event::Heartbeat {
@@ -61,28 +65,39 @@ impl RoleNode<Candidate> {
 
     /// Processes a message.
     pub fn step(mut self, msg: Message) -> Result<Node> {
+        // 验证消息
         if let Err(err) = self.validate(&msg) {
             warn!("Ignoring invalid message: {}", err);
             return Ok(self.into());
         }
+        // 投票的任期，大于自己的任期
         if msg.term > self.term {
             if let Address::Peer(from) = &msg.from {
+                // 变成follower
                 return self.become_follower(msg.term, from)?.step(msg);
             }
         }
 
+        // 事件类型
         match msg.event {
             Event::Heartbeat { .. } => {
+                // 消息类型，使用某一个结果的心跳
                 if let Address::Peer(from) = &msg.from {
+                    // 自己成为follower
                     return self.become_follower(msg.term, from)?.step(msg);
                 }
             }
 
+            // 获取投票信息
+            // 投票消息
             Event::GrantVote => {
                 debug!("Received term {} vote from {:?}", self.term, msg.from);
+                // 投票 + 1
                 self.role.votes += 1;
+                // 大于配置的quorum
                 if self.role.votes >= self.quorum() {
                     let queued = std::mem::take(&mut self.queued_reqs);
+                    // 类型转换成leader
                     let mut node: Node = self.become_leader()?.into();
                     for (from, event) in queued {
                         node = node.step(Message { from, to: Address::Local, term: 0, event })?;
@@ -91,6 +106,7 @@ impl RoleNode<Candidate> {
                 }
             }
 
+            // 客户端请求
             Event::ClientRequest { .. } => self.queued_reqs.push((msg.from, msg.event)),
 
             Event::ClientResponse { id, mut response } => {
@@ -98,12 +114,14 @@ impl RoleNode<Candidate> {
                     status.server = self.id.clone();
                 }
                 self.proxied_reqs.remove(&id);
+                // 发送客户端响应
                 self.send(Address::Client, Event::ClientResponse { id, response })?;
             }
 
             // Ignore other candidates when we're also campaigning
             Event::SolicitVote { .. } => {}
 
+            // 收到合适的消息
             Event::ConfirmLeader { .. }
             | Event::ReplicateEntries { .. }
             | Event::AcceptEntries { .. }

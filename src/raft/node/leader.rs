@@ -34,6 +34,7 @@ impl Leader {
     }
 }
 
+// leader成为follow
 impl RoleNode<Leader> {
     /// Transforms the leader into a follower
     fn become_follower(mut self, term: u64, leader: &str) -> Result<RoleNode<Follower>> {
@@ -42,7 +43,7 @@ impl RoleNode<Leader> {
         self.term = term;
         self.log.save_term(term, None)?;
         self.state_tx.send(Instruction::Abort)?;
-        // 成为follower
+        // 将自己的状态转化成为follower
         self.become_role(Follower::new(Some(leader), None))
     }
 
@@ -116,15 +117,21 @@ impl RoleNode<Leader> {
             warn!("Ignoring invalid message: {}", err);
             return Ok(self.into());
         }
+        // 消息的term大于本地节点的term
         if msg.term > self.term {
             if let Address::Peer(from) = &msg.from {
+                // 自己成为follow
                 return self.become_follower(msg.term, from)?.step(msg);
             }
         }
 
+        // 消息的事件
         match msg.event {
+            // 如果是confirm leader
             Event::ConfirmLeader { commit_index, has_committed } => {
+                // 获取消息的来源
                 if let Address::Peer(from) = msg.from.clone() {
+                    // 返回响应
                     self.state_tx.send(Instruction::Vote {
                         term: msg.term,
                         index: commit_index,
@@ -136,14 +143,17 @@ impl RoleNode<Leader> {
                 }
             }
 
+            // 采纳来该entry
             Event::AcceptEntries { last_index } => {
                 if let Address::Peer(from) = msg.from {
                     self.role.peer_last_index.insert(from.clone(), last_index);
                     self.role.peer_next_index.insert(from, last_index + 1);
                 }
+                // 提交
                 self.commit()?;
             }
 
+            // 拒绝来该entry
             Event::RejectEntries => {
                 if let Address::Peer(from) = msg.from {
                     self.role.peer_next_index.entry(from.clone()).and_modify(|i| {
@@ -180,6 +190,7 @@ impl RoleNode<Leader> {
                 }
             }
 
+            // 客户端的请求
             Event::ClientRequest { id, request: Request::Mutate(command) } => {
                 let index = self.append(Some(command))?;
                 self.state_tx.send(Instruction::Notify { id, address: msg.from, index })?;
@@ -188,6 +199,7 @@ impl RoleNode<Leader> {
                 }
             }
 
+            // 查询状态
             Event::ClientRequest { id, request: Request::Status } => {
                 let mut status = Box::new(Status {
                     server: self.id.clone(),
@@ -203,6 +215,7 @@ impl RoleNode<Leader> {
                 self.state_tx.send(Instruction::Status { id, address: msg.from, status })?
             }
 
+            // 发送响应
             Event::ClientResponse { id, mut response } => {
                 if let Ok(Response::Status(ref mut status)) = response {
                     status.server = self.id.clone();
@@ -214,6 +227,7 @@ impl RoleNode<Leader> {
             // election that we won after a quorum.
             Event::SolicitVote { .. } | Event::GrantVote => {}
 
+            // 心跳
             Event::Heartbeat { .. } | Event::ReplicateEntries { .. } => {
                 warn!("Received unexpected message {:?}", msg)
             }

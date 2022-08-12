@@ -5,6 +5,7 @@ mod node;
 mod server;
 mod state;
 
+// 导出的结构
 pub use self::log::{Entry, Log, Scan};
 pub use client::Client;
 pub use message::{Address, Event, Message, Request, Response};

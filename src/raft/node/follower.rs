@@ -80,22 +80,33 @@ impl RoleNode<Follower> {
                 return self.become_follower(from, msg.term)?.step(msg);
             }
         }
+        // 自己是leader
         if self.is_leader(&msg.from) {
+            // 设置为0
             self.role.leader_seen_ticks = 0
         }
 
         match msg.event {
+            // 获取commit index 和任期
             Event::Heartbeat { commit_index, commit_term } => {
+                // 自己是leader
                 if self.is_leader(&msg.from) {
+                    // 是否已经提交了
                     let has_committed = self.log.has(commit_index, commit_term)?;
                     if has_committed && commit_index > self.log.commit_index {
+                        // 老的commit_index
                         let old_commit_index = self.log.commit_index;
+                        // 提交
                         self.log.commit(commit_index)?;
+                        // 迭代器
                         let mut scan = self.log.scan((old_commit_index + 1)..=commit_index);
+                        // 转换成entry
                         while let Some(entry) = scan.next().transpose()? {
+                            // 应用日志
                             self.state_tx.send(Instruction::Apply { entry })?;
                         }
                     }
+                    // 发送even
                     self.send(msg.from, Event::ConfirmLeader { commit_index, has_committed })?;
                 }
             }
