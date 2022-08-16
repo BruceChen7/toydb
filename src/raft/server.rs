@@ -51,23 +51,36 @@ impl Server {
         listener: TcpListener,
         client_rx: mpsc::UnboundedReceiver<(Request, oneshot::Sender<Result<Response>>)>,
     ) -> Result<()> {
+        // 输入
         let (tcp_in_tx, tcp_in_rx) = mpsc::unbounded_channel::<Message>();
+        // 输出
         let (tcp_out_tx, tcp_out_rx) = mpsc::unbounded_channel::<Message>();
+        // 用来创建tcp listener
+        // 是一个future
+        // 流量输入
         let (task, tcp_receiver) = Self::tcp_receive(listener, tcp_in_tx).remote_handle();
+
+        // 客户端输出
         tokio::spawn(task);
         let (task, tcp_sender) =
             Self::tcp_send(self.node.id(), self.peers, tcp_out_rx).remote_handle();
         tokio::spawn(task);
+
+        // 产生来task
+        // 事件循环
         let (task, eventloop) =
             Self::eventloop(self.node, self.node_rx, client_rx, tcp_in_rx, tcp_out_tx)
                 .remote_handle();
+        // 可以在另外的一个goroutine中执行
         tokio::spawn(task);
 
+        // 等待这些coroutine结束
         tokio::try_join!(tcp_receiver, tcp_sender, eventloop)?;
         Ok(())
     }
 
     /// Runs the event loop.
+    /// 事件循环
     async fn eventloop(
         mut node: Node,
         node_rx: mpsc::UnboundedReceiver<Message>,
@@ -79,14 +92,18 @@ impl Server {
         let mut tcp_rx = UnboundedReceiverStream::new(tcp_rx);
         let mut client_rx = UnboundedReceiverStream::new(client_rx);
 
+        // 每个ticker
         let mut ticker = tokio::time::interval(TICK);
         let mut requests = HashMap::<Vec<u8>, oneshot::Sender<Result<Response>>>::new();
         loop {
             tokio::select! {
+                // 时间到了
                 _ = ticker.tick() => node = node.tick()?,
 
+                // 收到消息
                 Some(msg) = tcp_rx.next() => node = node.step(msg)?,
 
+                // 节点收到消息
                 Some(msg) = node_rx.next() => {
                     match msg {
                         Message{to: Address::Peer(_), ..} => tcp_tx.send(msg)?,
@@ -123,10 +140,13 @@ impl Server {
     ) -> Result<()> {
         let mut listener = TcpListenerStream::new(listener);
         while let Some(socket) = listener.try_next().await? {
+            // 对方的ip 地址
             let peer = socket.peer_addr()?;
+            // 发送方地址
             let peer_in_tx = in_tx.clone();
             tokio::spawn(async move {
                 debug!("Raft peer {} connected", peer);
+                // 用来接收消息
                 match Self::tcp_receive_peer(socket, peer_in_tx).await {
                     Ok(()) => debug!("Raft peer {} disconnected", peer),
                     Err(err) => error!("Raft peer {} error: {}", peer, err.to_string()),
@@ -141,11 +161,17 @@ impl Server {
         socket: TcpStream,
         in_tx: mpsc::UnboundedSender<Message>,
     ) -> Result<()> {
+        // 用来编解码
         let mut stream = tokio_serde::SymmetricallyFramed::<_, Message, _>::new(
+            // 用来创建一个流编解码器
+            // 用来长度编码
             Framed::new(socket, LengthDelimitedCodec::new()),
             tokio_serde::formats::SymmetricalBincode::<Message>::default(),
         );
+
+        // 一直读消息
         while let Some(message) = stream.try_next().await? {
+            // 有新消息
             in_tx.send(message)?;
         }
         Ok(())

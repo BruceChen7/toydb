@@ -60,6 +60,7 @@ impl RoleNode<Leader> {
     }
 
     /// Commits any pending log entries.
+    /// 用来commit
     fn commit(&mut self) -> Result<u64> {
         let mut last_indexes = vec![self.log.last_index];
         last_indexes.extend(self.role.peer_last_index.values());
@@ -70,11 +71,14 @@ impl RoleNode<Leader> {
         // We can only safely commit up to an entry from our own term, see figure 8 in Raft paper.
         if quorum_index > self.log.commit_index {
             if let Some(entry) = self.log.get(quorum_index)? {
+                // 如果任期term
                 if entry.term == self.term {
                     let old_commit_index = self.log.commit_index;
                     self.log.commit(quorum_index)?;
+                    // 扫描这之间的log
                     let mut scan = self.log.scan((old_commit_index + 1)..=self.log.commit_index);
                     while let Some(entry) = scan.next().transpose()? {
+                        // 给状态机执行
                         self.state_tx.send(Instruction::Apply { entry })?;
                     }
                 }
@@ -145,11 +149,14 @@ impl RoleNode<Leader> {
 
             // 采纳来该entry
             Event::AcceptEntries { last_index } => {
+                // 获取节点
                 if let Address::Peer(from) = msg.from {
+                    // 对应节点已经accept了
                     self.role.peer_last_index.insert(from.clone(), last_index);
+                    // 预期的index
                     self.role.peer_next_index.insert(from, last_index + 1);
                 }
-                // 提交
+                // 能够提交，将能够提交的部分持久化
                 self.commit()?;
             }
 
@@ -165,15 +172,20 @@ impl RoleNode<Leader> {
                 }
             }
 
+            // 客户端请求
             Event::ClientRequest { id, request: Request::Query(command) } => {
                 self.state_tx.send(Instruction::Query {
                     id,
                     address: msg.from,
                     command,
+                    // 自己的term
                     term: self.term,
+                    // 当前commit index
                     index: self.log.commit_index,
+                    // 法定人数
                     quorum: self.quorum(),
                 })?;
+                // 投票投自己
                 self.state_tx.send(Instruction::Vote {
                     term: self.term,
                     index: self.log.commit_index,
@@ -181,7 +193,9 @@ impl RoleNode<Leader> {
                 })?;
                 if !self.peers.is_empty() {
                     self.send(
+                        // 广播所有的节点
                         Address::Peers,
+                        // 心跳内容
                         Event::Heartbeat {
                             commit_index: self.log.commit_index,
                             commit_term: self.log.commit_term,
@@ -190,10 +204,12 @@ impl RoleNode<Leader> {
                 }
             }
 
-            // 客户端的请求
+            // 客户端的请求，写请求
             Event::ClientRequest { id, request: Request::Mutate(command) } => {
+                // append 命令
                 let index = self.append(Some(command))?;
                 self.state_tx.send(Instruction::Notify { id, address: msg.from, index })?;
+                // 只有自己节点
                 if self.peers.is_empty() {
                     self.commit()?;
                 }
@@ -237,13 +253,16 @@ impl RoleNode<Leader> {
     }
 
     /// Processes a logical clock tick.
+    /// 逻辑时钟处理
     pub fn tick(mut self) -> Result<Node> {
+        // 心跳协议
         if !self.peers.is_empty() {
             self.role.heartbeat_ticks += 1;
             if self.role.heartbeat_ticks >= HEARTBEAT_INTERVAL {
                 self.role.heartbeat_ticks = 0;
                 self.send(
                     Address::Peers,
+                    // 自己节点信息
                     Event::Heartbeat {
                         commit_index: self.log.commit_index,
                         commit_term: self.log.commit_term,
@@ -251,6 +270,7 @@ impl RoleNode<Leader> {
                 )?;
             }
         }
+        // 转成Node类型
         Ok(self.into())
     }
 }
@@ -272,6 +292,7 @@ mod tests {
         mpsc::UnboundedReceiver<Instruction>,
     )> {
         let (node_tx, node_rx) = mpsc::unbounded_channel();
+        // 返回接收channel
         let (state_tx, state_rx) = mpsc::unbounded_channel();
         let peers = vec!["b".into(), "c".into(), "d".into(), "e".into()];
         let mut log = Log::new(Box::new(log::Test::new()))?;

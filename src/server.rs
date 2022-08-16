@@ -26,6 +26,7 @@ pub struct Server {
 
 impl Server {
     /// Creates a new toyDB server.
+    /// db server
     pub async fn new(
         id: &str,
         peers: HashMap<String, String>,
@@ -33,9 +34,11 @@ impl Server {
         sql_store: Box<dyn kv::Store>,
     ) -> Result<Self> {
         Ok(Server {
+            // 创建raft server
             raft: raft::Server::new(
                 id,
                 peers,
+                // 日志记录
                 raft::Log::new(raft_store)?,
                 Box::new(sql::engine::Raft::new_state(kv::MVCC::new(sql_store))?),
             )
@@ -47,16 +50,20 @@ impl Server {
 
     /// Starts listening on the given ports. Must be called before serve.
     pub async fn listen(mut self, sql_addr: &str, raft_addr: &str) -> Result<Self> {
+        // 绑定多个节点
         let (sql, raft) =
             tokio::try_join!(TcpListener::bind(sql_addr), TcpListener::bind(raft_addr),)?;
         info!("Listening on {} (SQL) and {} (Raft)", sql.local_addr()?, raft.local_addr()?);
+        // sql listener
         self.sql_listener = Some(sql);
+        // raft 节点
         self.raft_listener = Some(raft);
         Ok(self)
     }
 
     /// Serves Raft and SQL requests until the returned future is dropped. Consumes the server.
     pub async fn serve(self) -> Result<()> {
+        // 用来返回listener
         let sql_listener = self
             .sql_listener
             .ok_or_else(|| Error::Internal("Must listen before serving".into()))?;
@@ -64,6 +71,8 @@ impl Server {
             .raft_listener
             .ok_or_else(|| Error::Internal("Must listen before serving".into()))?;
         let (raft_tx, raft_rx) = mpsc::unbounded_channel();
+
+        // sql engine
         let sql_engine = sql::engine::Raft::new(raft::Client::new(raft_tx));
 
         tokio::try_join!(

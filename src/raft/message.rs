@@ -18,6 +18,7 @@ pub enum Address {
 
 /// A message passed between Raft nodes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+// 真正的消息
 pub struct Message {
     /// The current term of the sender.
     pub term: u64,

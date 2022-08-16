@@ -46,6 +46,7 @@ async fn main() -> Result<()> {
         name => return Err(Error::Config(format!("Unknown SQL storage engine {}", name))),
     };
 
+    // 创建new server
     Server::new(&cfg.id, cfg.peers, raft_store, sql_store)
         .await?
         .listen(&cfg.listen_sql, &cfg.listen_raft)

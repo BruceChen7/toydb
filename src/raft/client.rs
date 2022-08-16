@@ -6,11 +6,13 @@ use tokio::sync::{mpsc, oneshot};
 /// A client for a local Raft server.
 #[derive(Clone)]
 pub struct Client {
+    // multi producer and single sender
     request_tx: mpsc::UnboundedSender<(Request, oneshot::Sender<Result<Response>>)>,
 }
 
 impl Client {
     /// Creates a new Raft client.
+    /// 创建raft client
     pub fn new(
         request_tx: mpsc::UnboundedSender<(Request, oneshot::Sender<Result<Response>>)>,
     ) -> Self {

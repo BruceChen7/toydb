@@ -143,6 +143,7 @@ impl From<RoleNode<Leader>> for Node {
 // A Raft node with role R
 pub struct RoleNode<R> {
     id: String,
+    // 对方的节点
     peers: Vec<String>,
     term: u64,
     log: Log,
@@ -261,7 +262,9 @@ mod tests {
         msgs: Vec<T>,
     ) {
         let mut actual = Vec::new();
+        // 如果收到消息
         while let Some(Some(message)) = rx.recv().now_or_never() {
+            // 一直收
             actual.push(message)
         }
         assert_eq!(msgs, actual);

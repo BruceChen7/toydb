@@ -94,14 +94,18 @@ impl RoleNode<Candidate> {
                 debug!("Received term {} vote from {:?}", self.term, msg.from);
                 // 投票 + 1
                 self.role.votes += 1;
-                // 大于配置的quorum
+                // 大于配置的法定人数
                 if self.role.votes >= self.quorum() {
                     let queued = std::mem::take(&mut self.queued_reqs);
-                    // 类型转换成leader
+                    // 类型转换成Node节点
                     let mut node: Node = self.become_leader()?.into();
+
+                    // queued中的事件
                     for (from, event) in queued {
+                        // 来处理事件
                         node = node.step(Message { from, to: Address::Local, term: 0, event })?;
                     }
+                    // 返回节点信息
                     return Ok(node);
                 }
             }
