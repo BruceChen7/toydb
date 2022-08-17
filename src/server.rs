@@ -49,6 +49,7 @@ impl Server {
     }
 
     /// Starts listening on the given ports. Must be called before serve.
+    /// listen 多个节点
     pub async fn listen(mut self, sql_addr: &str, raft_addr: &str) -> Result<Self> {
         // 绑定多个节点
         let (sql, raft) =
@@ -76,7 +77,9 @@ impl Server {
         let sql_engine = sql::engine::Raft::new(raft::Client::new(raft_tx));
 
         tokio::try_join!(
+            // 等待futur结束
             self.raft.serve(raft_listener, raft_rx),
+            // 执行sql
             Self::serve_sql(sql_listener, sql_engine),
         )?;
         Ok(())
@@ -134,11 +137,14 @@ impl Session {
     /// Handles a client connection.
     async fn handle(mut self, socket: TcpStream) -> Result<()> {
         let mut stream = tokio_serde::Framed::new(
+            // 获取应用层协议
             Framed::new(socket, LengthDelimitedCodec::new()),
             tokio_serde::formats::Bincode::default(),
         );
         while let Some(request) = stream.try_next().await? {
+            // 解析协议
             let mut response = tokio::task::block_in_place(|| self.request(request));
+            // 创建rows
             let mut rows: Box<dyn Iterator<Item = Result<Response>> + Send> =
                 Box::new(std::iter::empty());
             if let Ok(Response::Execute(ResultSet::Query { rows: ref mut resultrows, .. })) =
@@ -159,6 +165,7 @@ impl Session {
                         .fuse(),
                 );
             }
+            // 发回响应
             stream.send(response).await?;
             stream.send_all(&mut tokio_stream::iter(rows.map(Ok))).await?;
         }

@@ -25,8 +25,10 @@ async fn main() -> Result<()> {
                 .default_value("/etc/toydb.yaml"),
         )
         .get_matches();
+    // 获取配置
     let cfg = Config::new(opts.value_of("config").unwrap())?;
 
+    // 设置loglevel
     let loglevel = cfg.log_level.parse::<simplelog::LevelFilter>()?;
     let mut logconfig = simplelog::ConfigBuilder::new();
     if loglevel != simplelog::LevelFilter::Debug {

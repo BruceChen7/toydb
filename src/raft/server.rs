@@ -27,16 +27,22 @@ impl Server {
     pub async fn new(
         id: &str,
         peers: HashMap<String, String>,
+        // raft 日志
         log: Log,
         state: Box<dyn State>,
     ) -> Result<Self> {
+        // 通信channel
         let (node_tx, node_rx) = mpsc::unbounded_channel();
+        // 返回Node server
         Ok(Self {
+            // 节点
             node: Node::new(
                 id,
+                // 节点信息
                 peers.iter().map(|(k, _)| k.to_string()).collect(),
                 log,
                 state,
+                // producer channel
                 node_tx,
             )
             .await?,

@@ -53,6 +53,7 @@ impl Node {
         node_tx: mpsc::UnboundedSender<Message>,
     ) -> Result<Self> {
         let applied_index = state.applied_index();
+        // 应用的index 大于commit日志
         if applied_index > log.commit_index {
             return Err(Error::Internal(format!(
                 "State machine applied index {} greater than log committed index {}",
@@ -61,6 +62,7 @@ impl Node {
         }
 
         let (state_tx, state_rx) = mpsc::unbounded_channel();
+        // 创建driver
         let mut driver = Driver::new(state_rx, node_tx.clone());
         if log.commit_index > applied_index {
             info!("Replaying log entries {} to {}", applied_index + 1, log.commit_index);

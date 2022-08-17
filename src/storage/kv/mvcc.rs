@@ -20,6 +20,7 @@ pub struct Status {
 /// An MVCC-based transactional key-value store.
 pub struct MVCC {
     /// The underlying KV store. It is protected by a mutex so it can be shared between txns.
+    /// 存储
     store: Arc<RwLock<Box<dyn Store>>>,
 }
 

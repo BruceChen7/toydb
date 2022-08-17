@@ -29,12 +29,17 @@ pub enum Instruction {
     /// 应用这条log
     Apply { entry: Entry },
     /// Notify the given address with the result of applying the entry at the given index.
+    /// 通知命令字
     Notify { id: Vec<u8>, address: Address, index: u64 },
+    /// 查询指令
     /// Query the state machine when the given term and index has been confirmed by vote.
     Query { id: Vec<u8>, address: Address, command: Vec<u8>, term: u64, index: u64, quorum: u64 },
+    /// 给出服务器指令
     /// Extend the given server status and return it to the given address.
     Status { id: Vec<u8>, address: Address, status: Box<Status> },
+
     /// Votes for queries at the given term and commit index.
+    /// 投票指令
     Vote { term: u64, index: u64, address: Address },
 }
 
@@ -50,7 +55,9 @@ struct Query {
 
 /// Drives a state machine, taking operations from state_rx and sending results via node_tx.
 pub struct Driver {
+    // 收到指令
     state_rx: UnboundedReceiverStream<Instruction>,
+    // 给node节点发送消息
     node_tx: mpsc::UnboundedSender<Message>,
     applied_index: u64,
     /// Notify clients when their mutation is applied. <index, (client, id)>
@@ -70,14 +77,17 @@ impl Driver {
             node_tx,
             applied_index: 0,
             notify: HashMap::new(),
+            // 创建btree
             queries: BTreeMap::new(),
         }
     }
 
     /// Drives a state machine.
+    /// 用来驱使状态机
     pub async fn drive(mut self, mut state: Box<dyn State>) -> Result<()> {
         debug!("Starting state machine driver");
         while let Some(instruction) = self.state_rx.next().await {
+            // 执行指令
             if let Err(error) = self.execute(instruction, &mut *state).await {
                 error!("Halting state machine due to error: {}", error);
                 return Err(error);
@@ -105,6 +115,7 @@ impl Driver {
     pub async fn execute(&mut self, i: Instruction, state: &mut dyn State) -> Result<()> {
         debug!("Executing {:?}", i);
         match i {
+            // 如果是终止命令
             Instruction::Abort => {
                 self.notify_abort()?;
                 self.query_abort()?;
@@ -113,6 +124,7 @@ impl Driver {
             Instruction::Apply { entry: Entry { index, command, .. } } => {
                 if let Some(command) = command {
                     debug!("Applying state machine command {}: {:?}", index, command);
+                    // 用来改变index
                     match tokio::task::block_in_place(|| state.mutate(index, command)) {
                         Err(error @ Error::Internal(_)) => return Err(error),
                         result => self.notify_applied(index, result)?,

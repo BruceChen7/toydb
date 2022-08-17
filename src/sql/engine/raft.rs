@@ -95,6 +95,7 @@ impl Raft {
     }
 
     /// Deserializes a command for the Raft SQL state machine.
+    /// 反序列化
     fn deserialize<'a, V: Deserialize<'a>>(bytes: &'a [u8]) -> Result<V> {
         Ok(bincode::deserialize(bytes)?)
     }
@@ -311,14 +312,20 @@ impl raft::State for State {
         self.applied_index
     }
 
+    // 改变raft节点状态
     fn mutate(&mut self, index: u64, command: Vec<u8>) -> Result<Vec<u8>> {
         // We don't check that index == applied_index + 1, since the Raft log commits no-op
         // entries during leader election which we need to ignore.
         match self.apply(Raft::deserialize(&command)?) {
+            // 如果是错误
             error @ Err(Error::Internal(_)) => error,
+            // 如果是result
             result => {
+                // 设置set_metadata
                 self.engine.set_metadata(b"applied_index", Raft::serialize(&(index))?)?;
+                // 更新index
                 self.applied_index = index;
+                // 返回结果
                 result
             }
         }
